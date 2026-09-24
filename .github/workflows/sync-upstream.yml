@@ -19,10 +19,14 @@ jobs:
       - name: Sincronizar com o repositório original
         id: sync
         run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           git remote add upstream https://github.com/paperclipai/paperclip.git
           git fetch upstream master
           BEFORE=$(git rev-parse HEAD)
-          git merge --ff-only upstream/master
+          # merge normal: o fork tem commits próprios (ex.: este workflow),
+          # então fast-forward puro não é possível
+          git merge --no-edit upstream/master
           AFTER=$(git rev-parse HEAD)
           git push origin master
           if [ "$BEFORE" != "$AFTER" ]; then
