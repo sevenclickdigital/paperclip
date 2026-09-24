@@ -1,0 +1,41 @@
+name: Sync upstream + redeploy Dokploy
+
+on:
+  schedule:
+    - cron: "0 4 * * *" # todo dia às 4h UTC (1h da manhã em Brasília)
+  workflow_dispatch: # permite rodar manualmente pela aba Actions
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Sincronizar com o repositório original
+        id: sync
+        run: |
+          git remote add upstream https://github.com/paperclipai/paperclip.git
+          git fetch upstream master
+          BEFORE=$(git rev-parse HEAD)
+          git merge --ff-only upstream/master
+          AFTER=$(git rev-parse HEAD)
+          git push origin master
+          if [ "$BEFORE" != "$AFTER" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Disparar deploy no Dokploy
+        if: steps.sync.outputs.changed == 'true'
+        env:
+          DOKPLOY_WEBHOOK_URL: ${{ secrets.DOKPLOY_WEBHOOK_URL }}
+        run: |
+          if [ -z "$DOKPLOY_WEBHOOK_URL" ]; then
+            echo "Secret DOKPLOY_WEBHOOK_URL não configurado; pulando o disparo do deploy."
+            exit 0
+          fi
+          curl -fsS -X POST "$DOKPLOY_WEBHOOK_URL"
